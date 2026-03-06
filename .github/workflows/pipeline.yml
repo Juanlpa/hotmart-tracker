@@ -1,0 +1,45 @@
+name: Daily Hotmart Pipeline
+
+on:
+  schedule:
+    # Ejecutar a las 7:00 AM UTC (2:00 AM Colombia)
+    - cron: '0 7 * * *'
+  workflow_dispatch:  # Permite ejecución manual desde GitHub UI
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Run daily pipeline
+        run: python -m src.pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TARGET_MARKET: ${{ vars.TARGET_MARKET || 'BR' }}
+          SCORE_ALERT_THRESHOLD: ${{ vars.SCORE_ALERT_THRESHOLD || '65' }}
+          MIN_COMMISSION_PCT: ${{ vars.MIN_COMMISSION_PCT || '60' }}
+          MIN_RATING: ${{ vars.MIN_RATING || '4.0' }}
+          WEIGHT_HOTMART: ${{ vars.WEIGHT_HOTMART || '0.25' }}
+          WEIGHT_FB: ${{ vars.WEIGHT_FB || '0.35' }}
+          WEIGHT_TRENDS: ${{ vars.WEIGHT_TRENDS || '0.25' }}
+          WEIGHT_YOUTUBE: ${{ vars.WEIGHT_YOUTUBE || '0.15' }}

@@ -1,0 +1,50 @@
+name: Hotmart Tracker Daily Pipeline
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 11:00 UTC (06:00 AM hora de Ecuador/Colombia/Perú aprox)
+    - cron: '0 11 * * *'
+  # Permite ejecutar el workflow manualmente desde la página de GitHub
+  workflow_dispatch:
+
+jobs:
+  run-tracker:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip' # Acelera las instalaciones futuras
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright browsers (Chromium)
+        run: |
+          playwright install chromium
+
+      - name: Run Pipeline
+        env:
+          HOTMART_EMAIL: ${{ secrets.HOTMART_EMAIL }}
+          HOTMART_PASSWORD: ${{ secrets.HOTMART_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          # Variables / Opcionales
+          HOTMART_SCRAPER_PROXY: ${{ secrets.HOTMART_SCRAPER_PROXY }}
+          TARGET_MARKET: ${{ vars.TARGET_MARKET || 'BR' }}
+          SCORE_ALERT_THRESHOLD: ${{ vars.SCORE_ALERT_THRESHOLD || '65' }}
+          MIN_COMMISSION_PCT: ${{ vars.MIN_COMMISSION_PCT || '60.0' }}
+          PYTHONPATH: .
+        run: |
+          python -m src.pipeline
