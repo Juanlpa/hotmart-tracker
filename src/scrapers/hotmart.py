@@ -160,7 +160,15 @@ async def _login_hotmart(page: Page) -> bool:
         )
         await asyncio.sleep(0.5)
 
-        await (await page.wait_for_selector("button#submit-button", timeout=5000)).click()
+        try:
+            # First try the default id, then fallback to any submit button
+            submit_btn = await page.wait_for_selector("button#submit-button, button[type='submit']", timeout=5000)
+            if submit_btn:
+                await submit_btn.click()
+        except Exception:
+            # Fallback for headless environments if button is obscured
+            logger.warning("Botón de submit no encontrado, intentando enviar con Enter...")
+            await page.keyboard.press("Enter")
 
         # Esperar redirección post-login
         try:
