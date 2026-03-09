@@ -338,13 +338,17 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
 
         # ─── URL ───
         url_venta = ""
-        href = await card.get_attribute("href")
+        # Try to find href on the card itself, or any child <a> element safely
+        href = await card.evaluate("el => { let a = el.closest('a') || el.querySelector('a'); return a ? a.getAttribute('href') : el.getAttribute('href'); }")
+        
         if href:
             url_venta = href
-        else:
-            link_el = await card.query_selector("a[href]")
-            if link_el:
-                url_venta = await link_el.get_attribute("href") or ""
+            
+        if url_venta and url_venta.startswith("/"):
+            url_venta = "https://app.hotmart.com" + url_venta
+            
+        if not url_venta:
+            logger.debug(f"DEBUG NO URL in CARD: {await card.evaluate('el => el.outerHTML')} ")
 
         # ─── DOM Selectors for Authenticated Market ───
         
@@ -439,10 +443,9 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
 
         # ─── Hotmart ID ───
         hotmart_id = ""
-        if url_venta:
-            parts = url_venta.rstrip("/").split("/")
-            if parts:
-                hotmart_id = parts[-1].split("?")[0]
+        parts = url_venta.rstrip("/").split("/")
+        if parts:
+            hotmart_id = parts[-1].split("?")[0]
         if not hotmart_id:
             hotmart_id = f"ht_{hash(nombre) % 10**8}"
 

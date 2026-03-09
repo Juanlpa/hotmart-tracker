@@ -41,16 +41,24 @@ def format_alert_message(scored: ScoredProduct) -> str:
         else "⚠️ Ninguno identificado"
     )
 
+    import html
+    
+    # Escape user input to prevent HTML injection errors
+    safe_nombre = html.escape(scored.snapshot.nombre)
+    safe_url = html.escape(scored.snapshot.url_venta)
+    safe_canales = html.escape(canales_str)
+    safe_risk = html.escape(scored.channel_risk)
+
     message = (
-        f"🚨 *ALERTA DE PRODUCTO* — Score: {scored.score_total}/100\n"
+        f"🚨 <b>ALERTA DE PRODUCTO</b> — Score: {scored.score_total}/100\n"
         f"\n"
-        f"📦 *{scored.snapshot.nombre}*\n"
+        f"📦 <b>{safe_nombre}</b>\n"
         f"💰 Comisión: {scored.snapshot.comision_pct}% | "
         f"Precio: ${scored.snapshot.precio:.2f}\n"
         f"⭐ Rating: {scored.snapshot.rating}/5 "
         f"({scored.snapshot.num_ratings} reviews)\n"
         f"\n"
-        f"*Señales detectadas:*\n"
+        f"<b>Señales detectadas:</b>\n"
         f"{_emoji(scored.score_hotmart, 25)} Hotmart: "
         f"{delta_emoji} temp {scored.snapshot.temperatura}° ({scored.score_hotmart}/25)\n"
         f"{_emoji(scored.score_fb, 35)} FB Ads: "
@@ -63,10 +71,10 @@ def format_alert_message(scored: ScoredProduct) -> str:
         f"{scored.signals.yt_recent_videos_count} videos recientes "
         f"({scored.score_youtube}/15)\n"
         f"\n"
-        f"*Canal recomendado:* {canales_str}\n"
-        f"*Riesgo de competencia:* {scored.channel_risk}\n"
+        f"<b>Canal recomendado:</b> {safe_canales}\n"
+        f"<b>Riesgo de competencia:</b> {safe_risk}\n"
         f"\n"
-        f"🔗 [Ver VSL]({scored.snapshot.url_venta})"
+        f"🔗 <a href=\"{safe_url}\">Ver VSL</a>"
     )
 
     return message
@@ -86,7 +94,7 @@ def send_alert(message: str) -> bool:
             json={
                 "chat_id": settings.telegram_chat_id,
                 "text": message,
-                "parse_mode": "Markdown",
+                "parse_mode": "HTML",
                 "disable_web_page_preview": True,
             },
             timeout=10,
