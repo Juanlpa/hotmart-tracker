@@ -48,6 +48,8 @@ KEYWORD_MAP = {
     "idiomas": "aprender ingles rapido",
     "estilo-de-vida": "ansiedade tratamento",
     "espiritualidade": "ansiedade tratamento",
+    "hot": "produtos mais vendidos",  # "Más Calientes" — productos top por temperatura
+    "market": "produtos digitais",    # Marketplace autenticado general
     "__default__": None,
 }
 

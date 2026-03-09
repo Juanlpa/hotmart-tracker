@@ -42,6 +42,13 @@ COOKIES_PATH = Path(__file__).parent.parent.parent / ".hotmart_cookies.json"
 # URLs
 HOTMART_LOGIN_URL = "https://sso.hotmart.com/login"
 HOTMART_APP_MARKET_URL = "https://app.hotmart.com/market"
+# "Más Calientes" — productos con mayor temperatura (requiere auth)
+HOTMART_APP_HOT_URLS = [
+    "https://app.hotmart.com/market/search?order=TEMPERATURE",
+    "https://app.hotmart.com/market/search?order=TEMPERATURE&categoryId=1",  # Salud
+    "https://app.hotmart.com/market/search?order=TEMPERATURE&categoryId=2",  # Negocios
+    "https://app.hotmart.com/market/search?order=TEMPERATURE&categoryId=3",  # Finanzas
+]
 
 # Categorías del marketplace público (fallback sin auth)
 HOTMART_CATEGORIES = [
@@ -472,6 +479,75 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
 
 
 # ─────────────────────────────────────────────
+# AUTHENTICATED "Más Calientes" (app.hotmart.com/market/search?order=TEMPERATURE)
+# Productos con mayor temperatura — ya validados por el mercado
+# ─────────────────────────────────────────────
+
+async def _scrape_app_market_hot(
+    context: BrowserContext, max_products_per_url: int = 50
+) -> list[ProductSnapshot]:
+    """
+    Scraping de productos "Más Calientes" del marketplace autenticado.
+    Navega a las URLs ordenadas por temperatura y extrae los top products.
+    Los productos se tagean con categoria="hot" para diferenciarlos.
+    """
+    page = await _setup_page(context)
+    all_products: list[ProductSnapshot] = []
+    seen_ids: set[str] = set()
+
+    try:
+        for hot_url in HOTMART_APP_HOT_URLS:
+            try:
+                logger.info(f"Scraping 'Más Calientes': {hot_url}")
+                await page.goto(hot_url, wait_until="domcontentloaded", timeout=30000)
+                await _random_delay()
+                await asyncio.sleep(5)
+
+                # Scroll para cargar más productos
+                for _ in range(6):
+                    await page.evaluate("window.scrollBy(0, window.innerHeight)")
+                    await asyncio.sleep(1.5)
+
+                # Mismos selectores que el market autenticado general
+                product_links = await page.query_selector_all(
+                    'a[href*="/market/product/"], a[href*="/marketplace/productos/"]'
+                )
+                if not product_links:
+                    product_links = await page.query_selector_all(
+                        '[class*="card"], [class*="Card"]'
+                    )
+
+                logger.info(f"Encontrados {len(product_links)} productos calientes en {hot_url}")
+
+                for link in product_links[:max_products_per_url]:
+                    try:
+                        product = await _extract_from_auth_card(link, page)
+                        if product and product.hotmart_id not in seen_ids:
+                            # Tagear como "hot" para scoring y keyword mapping
+                            product.categoria = "hot"
+                            seen_ids.add(product.hotmart_id)
+                            all_products.append(product)
+                    except Exception as e:
+                        logger.warning(f"Error extrayendo producto caliente: {e}")
+                        continue
+
+            except Exception as e:
+                logger.warning(f"Error scraping hot URL {hot_url}: {e}")
+                continue
+
+            await _random_delay()
+
+        logger.info(f"Total productos 'Más Calientes': {len(all_products)}")
+
+    except Exception as e:
+        logger.error(f"Error en scraping de productos calientes: {e}")
+    finally:
+        await page.close()
+
+    return all_products
+
+
+# ─────────────────────────────────────────────
 # PUBLIC Marketplace (hotmart.com/es/marketplace)
 # Fallback cuando no hay auth
 # ─────────────────────────────────────────────
@@ -672,6 +748,19 @@ async def scrape_all_categories(
             logger.info("Usando marketplace de afiliados (app.hotmart.com/market)")
             auth_products = await _scrape_app_market(context, max_products=200)
             all_products.extend(auth_products)
+
+            # ── SCRAPING "MÁS CALIENTES": productos top por temperatura ──
+            logger.info("Scraping adicional: productos 'Más Calientes'...")
+            hot_products = await _scrape_app_market_hot(context, max_products_per_url=50)
+
+            # Deduplicar: solo agregar hot products que no estén ya en all_products
+            existing_ids = {p.hotmart_id for p in all_products}
+            new_hot = [p for p in hot_products if p.hotmart_id not in existing_ids]
+            all_products.extend(new_hot)
+            logger.info(
+                f"'Más Calientes': {len(hot_products)} encontrados, "
+                f"{len(new_hot)} nuevos (no duplicados)"
+            )
         else:
             # ── SCRAPING PÚBLICO: hotmart.com/es/marketplace ──
             logger.info("Usando marketplace público (sin comisión/temperatura)")
