@@ -147,8 +147,8 @@ async def _login_hotmart(page: Page) -> bool:
 
     try:
         logger.info("Iniciando login en Hotmart SSO...")
-        await page.goto(HOTMART_LOGIN_URL, wait_until="networkidle", timeout=30000)
-        await asyncio.sleep(2)
+        await page.goto(HOTMART_LOGIN_URL, wait_until="domcontentloaded", timeout=40000)
+        await asyncio.sleep(4)
 
         await (await page.wait_for_selector("input#username", timeout=10000)).fill(
             settings.hotmart_email
@@ -194,8 +194,8 @@ async def _login_hotmart(page: Page) -> bool:
 async def _check_session(page: Page) -> bool:
     """Verifica si la sesión está autenticada accediendo al market de afiliados."""
     try:
-        await page.goto(HOTMART_APP_MARKET_URL, wait_until="networkidle", timeout=20000)
-        await asyncio.sleep(2)
+        await page.goto(HOTMART_APP_MARKET_URL, wait_until="domcontentloaded", timeout=20000)
+        await asyncio.sleep(5)
         # Si redirige al login, no hay sesión
         current_url = page.url
         if "sso.hotmart.com" in current_url or "login" in current_url:
@@ -266,8 +266,9 @@ async def _scrape_app_market(
 
     try:
         logger.info(f"Scraping marketplace autenticado: {HOTMART_APP_MARKET_URL}")
-        await page.goto(HOTMART_APP_MARKET_URL, wait_until="networkidle", timeout=30000)
+        await page.goto(HOTMART_APP_MARKET_URL, wait_until="domcontentloaded", timeout=30000)
         await _random_delay()
+        await asyncio.sleep(5)
 
         # Scroll para cargar más contenido
         for _ in range(8):
@@ -331,7 +332,8 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
     - Precio: "Precio máximo del producto: 50,00 US$"
     """
     try:
-        full_text = await card.inner_text()
+        # Extraer texto seguro via JS para evitar Playwright 'Node is not an HTMLElement'
+        full_text = await card.evaluate("el => el.innerText || el.textContent || ''")
         if not full_text or len(full_text.strip()) < 5:
             return None
 
@@ -351,7 +353,7 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
         temperatura = 0.0
         temp_el = await card.query_selector("span:has-text('°')")
         if temp_el:
-            temp_text = await temp_el.inner_text()
+            temp_text = await temp_el.evaluate("el => el.innerText || el.textContent || ''")
             temp_match = re.search(r"(\d+)\s*°", temp_text)
             if temp_match:
                 temperatura = float(temp_match.group(1))
@@ -482,8 +484,9 @@ async def _scrape_public_category(
     try:
         page = await _setup_page(context)
         logger.info(f"Scraping público: {category_url}")
-        await page.goto(category_url, wait_until="networkidle", timeout=30000)
+        await page.goto(category_url, wait_until="domcontentloaded", timeout=30000)
         await _random_delay()
+        await asyncio.sleep(5)
 
         for _ in range(5):
             await page.evaluate("window.scrollBy(0, window.innerHeight)")
@@ -549,7 +552,7 @@ async def _extract_from_public_card(card, page: Page, categoria: str) -> Product
         moneda = "USD"
         precio_el = await card.query_selector("h3")
         if precio_el:
-            precio_text = await precio_el.inner_text()
+            precio_text = await precio_el.evaluate("el => el.innerText || el.textContent || ''")
             match = re.search(r"([\d.,]+)", precio_text)
             if match:
                 precio = _parse_number(match.group(1))
@@ -560,7 +563,7 @@ async def _extract_from_public_card(card, page: Page, categoria: str) -> Product
         num_ratings = 0
         spans = await card.query_selector_all("span")
         for span in spans:
-            text = (await span.inner_text() or "").strip()
+            text = (await span.evaluate("el => el.innerText || el.textContent || ''")).strip()
             if not text:
                 continue
             if re.match(r"^\d+[.,]\d+$", text) and rating == 0.0:
