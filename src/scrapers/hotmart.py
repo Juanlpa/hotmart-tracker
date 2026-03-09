@@ -309,7 +309,6 @@ async def _scrape_app_market(
             except Exception as e:
                 logger.warning(f"Error extrayendo producto autenticado: {e}")
                 continue
-            await _random_delay()
 
         logger.info(f"Extraídos {len(all_products)} productos del market autenticado")
 
@@ -512,7 +511,6 @@ async def _scrape_public_category(
                     products.append(product)
             except Exception as e:
                 logger.warning(f"Error extrayendo producto público: {e}")
-            await _random_delay()
 
         logger.info(f"Extraídos {len(products)} productos de {categoria}")
         return products
