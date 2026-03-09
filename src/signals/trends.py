@@ -139,7 +139,7 @@ def fetch_trend_signals(
 
         # Si hay caché expirado, usarlo como fallback
         if cached:
-            logger.info(f"Usando caché expirado como fallback para '{keyword}'")
+            logger.warning(f"Usando caché expirado como fallback para '{keyword}'")
             return SignalData(
                 trends_slope_30d=cached.get("slope_30d", 0.0),
                 trends_at_peak=cached.get("at_peak", False),

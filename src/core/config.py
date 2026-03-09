@@ -56,6 +56,16 @@ class Settings(BaseSettings):
             raise ValueError("SCORE_ALERT_THRESHOLD debe estar entre 0 y 100")
         return v
 
+    @field_validator("scraper_delay_max")
+    @classmethod
+    def delay_order(cls, v: float, info) -> float:
+        min_val = info.data.get("scraper_delay_min", 3.0)
+        if v < min_val:
+            raise ValueError(
+                f"SCRAPER_DELAY_MAX ({v}) debe ser >= SCRAPER_DELAY_MIN ({min_val})"
+            )
+        return v
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

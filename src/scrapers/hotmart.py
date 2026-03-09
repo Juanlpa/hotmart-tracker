@@ -114,8 +114,19 @@ async def _setup_context(browser: Browser) -> BrowserContext:
 
 
 async def _setup_page(context: BrowserContext) -> Page:
-    """Página con stealth anti-detección."""
+    """Página con stealth anti-detección (playwright-stealth + JS overrides)."""
     page = await context.new_page()
+
+    # Aplicar playwright-stealth si está disponible
+    try:
+        from playwright_stealth import stealth_async  # type: ignore
+        await stealth_async(page)
+    except ImportError:
+        logger.warning("playwright-stealth no instalado, usando stealth manual")
+    except Exception as e:
+        logger.warning(f"playwright-stealth falló: {e}")
+
+    # Stealth JS adicional (complementa playwright-stealth)
     await page.add_init_script("""
         Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
         window.chrome = {runtime: {}};
@@ -454,7 +465,9 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
         if parts:
             hotmart_id = parts[-1].split("?")[0]
         if not hotmart_id:
-            hotmart_id = f"ht_{hash(nombre) % 10**8}"
+            import uuid
+            uid = uuid.uuid4().hex
+            hotmart_id = "ht_" + uid[0] + uid[1] + uid[2] + uid[3] + uid[4] + uid[5] + uid[6] + uid[7]
 
         # ─── Categoría ───
         categoria = "market"  # Marketplace general
@@ -655,7 +668,9 @@ async def _extract_from_public_card(card, page: Page, categoria: str) -> Product
             if parts:
                 hotmart_id = parts[-1].split("?")[0]
         if not hotmart_id:
-            hotmart_id = f"ht_{hash(nombre) % 10**8}"
+            import uuid
+            uid = uuid.uuid4().hex
+            hotmart_id = "ht_" + uid[0] + uid[1] + uid[2] + uid[3] + uid[4] + uid[5] + uid[6] + uid[7]
 
         return ProductSnapshot(
             hotmart_id=hotmart_id,
