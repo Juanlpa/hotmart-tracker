@@ -305,85 +305,25 @@ async def _scrape_app_market(
         # - "Comisión de hasta" + valor
         # - "Precio máximo del producto:" + valor
 
-        # Estrategia: buscar links a productos y SUBIR al contenedor padre
-        # Los <a> son muchos (521+), pero el card padre tiene toda la info
-        raw_links = await page.query_selector_all(
-            'a[href*="/market/product/"]'
+        # Buscar links a productos individuales
+        product_links = await page.query_selector_all(
+            'a[href*="/market/product/"], a[href*="/marketplace/productos/"]'
         )
-        if not raw_links:
-            raw_links = await page.query_selector_all(
-                'a[href*="/marketplace/productos/"]'
+
+        if not product_links:
+            # Fallback: buscar cualquier card-like element
+            product_links = await page.query_selector_all(
+                '[class*="card"], [class*="Card"]'
             )
 
-        # Deduplicar: subir al contenedor padre más cercano que tenga texto sustancial
-        # Esto evita procesar 521 <a> cuando solo hay ~50-100 cards reales
-        product_links = await page.evaluate("""(links) => {
-            const seen = new Set();
-            const containers = [];
-            for (const link of links) {
-                // Subir al ancestor más cercano que tenga "Comisión" o "Precio máximo"
-                let el = link;
-                for (let i = 0; i < 5; i++) {
-                    if (!el.parentElement) break;
-                    el = el.parentElement;
-                    const text = el.innerText || '';
-                    if ((text.includes('omisi') || text.includes('omiss')) &&
-                        (text.includes('recio') || text.includes('reço'))) {
-                        break;
-                    }
-                }
-                // Usar el outerHTML como key para deduplicar
-                const key = el.innerText ? el.innerText.substring(0, 80) : '';
-                if (key && !seen.has(key)) {
-                    seen.add(key);
-                    containers.push(el);
-                }
-            }
-            return containers.length;
-        }""", raw_links)
-
-        # Ahora obtener los containers deduplicados como elementos reales
-        product_cards = await page.evaluate_handle("""() => {
-            const seen = new Set();
-            const containers = [];
-            const links = document.querySelectorAll('a[href*="/market/product/"]');
-            for (const link of links) {
-                let el = link;
-                for (let i = 0; i < 5; i++) {
-                    if (!el.parentElement) break;
-                    el = el.parentElement;
-                    const text = el.innerText || '';
-                    if ((text.includes('omisi') || text.includes('omiss')) &&
-                        (text.includes('recio') || text.includes('reço'))) {
-                        break;
-                    }
-                }
-                const key = el.innerText ? el.innerText.substring(0, 80) : '';
-                if (key && key.length > 20 && !seen.has(key)) {
-                    seen.add(key);
-                    containers.push(el);
-                }
-            }
-            return containers;
-        }""")
-
-        # Convertir JSHandle array a lista de ElementHandles
-        length = await product_cards.evaluate("arr => arr.length")
-        card_handles = []
-        for i in range(length):
-            handle = await product_cards.evaluate_handle(f"arr => arr[{i}]")
-            card_handles.append(handle)
-
-        logger.info(
-            f"Encontrados {len(raw_links)} links → {length} cards únicos con datos de producto"
-        )
+        logger.info(f"Encontrados {len(product_links)} elementos de producto en market autenticado")
 
         seen_names: set[str] = set()
-        for card_handle in card_handles:
+        for link in product_links:
             if len(all_products) >= max_products:
                 break
             try:
-                product = await _extract_from_auth_card(card_handle, page)
+                product = await _extract_from_auth_card(link, page)
                 if product and product.nombre not in seen_names:
                     seen_names.add(product.nombre)
                     all_products.append(product)
@@ -414,15 +354,7 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
     try:
         # Extraer texto seguro via JS para evitar Playwright 'Node is not an HTMLElement'
         full_text = await card.evaluate("el => el.innerText || el.textContent || ''")
-        if not full_text or len(full_text.strip()) < 20:
-            # Cards reales tienen al menos nombre + comisión (~20 chars mínimo)
-            return None
-
-        # Filtro rápido: si no tiene "comisión/comissão" NI "precio/preço", no es un card de producto
-        text_lower = full_text.lower()
-        has_commission = "comisi" in text_lower or "comiss" in text_lower
-        has_price = "precio" in text_lower or "preço" in text_lower or "us$" in text_lower or "r$" in text_lower
-        if not has_commission and not has_price:
+        if not full_text or len(full_text.strip()) < 5:
             return None
 
         # ─── URL ───
