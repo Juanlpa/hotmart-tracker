@@ -49,32 +49,36 @@ def format_alert_message(scored: ScoredProduct) -> str:
     safe_canales = html.escape(canales_str)
     safe_risk = html.escape(scored.channel_risk)
 
+    # Categoría Visual del Producto basada en el Score Total
+    if scored.score_total >= 80:
+        header = "💎 <b>SÚPER WINNER DETECTADO</b> 💎"
+    elif scored.score_total >= 60:
+        header = "🔥 <b>PRODUCTO CON ALTO POTENCIAL</b> 🔥"
+    elif scored.score_total >= 40:
+        header = "📊 <b>PRODUCTO EN EL RADAR</b>"
+    else:
+        header = "⚠️ <b>ALERTA DE PRODUCTO</b>"
+
     message = (
-        f"🚨 <b>ALERTA DE PRODUCTO</b> — Score: {scored.score_total}/100\n"
+        f"{header}\n"
+        f"🏆 <b>Score Total: {scored.score_total}/100</b>\n"
+        f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
+        f"📦 <b>{safe_nombre}</b>\n\n"
+        f"💰 <b>Comisión:</b> {scored.snapshot.comision_pct}%\n"
+        f"💵 <b>Precio:</b> ${scored.snapshot.precio:.2f}\n"
+        f"⭐ <b>Rating:</b> {scored.snapshot.rating}/5 ({scored.snapshot.num_ratings} reviews)\n"
+        f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
+        f"🎯 <b>Estrategia Recomendada:</b>\n"
+        f"👉 <b>Canal ideal:</b> {safe_canales}\n"
+        f"⚔️ <b>Riesgo de competencia:</b> {safe_risk}\n"
+        f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
+        f"📡 <b>Análisis de Señales:</b>\n"
+        f"{_emoji(scored.score_hotmart, 25)} Hotmart: {delta_emoji} {scored.snapshot.temperatura}° ({scored.score_hotmart}/25)\n"
+        f"{_emoji(scored.score_fb, 35)} FB Ads: {scored.signals.fb_advertisers_count} anuncios ({scored.score_fb}/35)\n"
+        f"{_emoji(scored.score_trends, 25)} Google: {scored.signals.trends_slope_30d:+.2f} ({scored.score_trends}/25)\n"
+        f"{_emoji(scored.score_youtube, 15)} YouTube: {scored.signals.yt_recent_videos_count} videos ({scored.score_youtube}/15)\n"
         f"\n"
-        f"📦 <b>{safe_nombre}</b>\n"
-        f"💰 Comisión: {scored.snapshot.comision_pct}% | "
-        f"Precio: ${scored.snapshot.precio:.2f}\n"
-        f"⭐ Rating: {scored.snapshot.rating}/5 "
-        f"({scored.snapshot.num_ratings} reviews)\n"
-        f"\n"
-        f"<b>Señales detectadas:</b>\n"
-        f"{_emoji(scored.score_hotmart, 25)} Hotmart: "
-        f"{delta_emoji} temp {scored.snapshot.temperatura}° ({scored.score_hotmart}/25)\n"
-        f"{_emoji(scored.score_fb, 35)} FB Ads: "
-        f"{scored.signals.fb_advertisers_count} anunciantes únicos "
-        f"({scored.score_fb}/35)\n"
-        f"{_emoji(scored.score_trends, 25)} Tendencia Google: "
-        f"pendiente {scored.signals.trends_slope_30d:+.2f} "
-        f"({scored.score_trends}/25)\n"
-        f"{_emoji(scored.score_youtube, 15)} YouTube: "
-        f"{scored.signals.yt_recent_videos_count} videos recientes "
-        f"({scored.score_youtube}/15)\n"
-        f"\n"
-        f"<b>Canal recomendado:</b> {safe_canales}\n"
-        f"<b>Riesgo de competencia:</b> {safe_risk}\n"
-        f"\n"
-        f"🔗 <a href=\"{safe_url}\">Ver VSL</a>"
+        f"🔗 <a href=\"{safe_url}\"><b>Ver Página de Ventas (VSL)</b></a>"
     )
 
     return message
