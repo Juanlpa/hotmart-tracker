@@ -112,8 +112,8 @@ async def run_daily_pipeline():
     Orquestador principal del pipeline diario.
     Orden de ejecución EXACTO per CLAUDE.md — no reordenar.
     """
-    timings = {}
-    alertas_enviadas = []
+    timings: dict[str, float] = {}
+    alertas_enviadas: list[str] = []
 
     logger.info("=" * 60)
     logger.info("INICIO DEL PIPELINE DIARIO")
@@ -204,15 +204,15 @@ async def run_daily_pipeline():
         return_exceptions=True,
     )
 
-    # Manejar excepciones en resultados paralelos
+    # Manejar excepciones en resultados paralelos (esperado — I4: usar defaults)
     if isinstance(fb_results, Exception):
-        logger.error(f"FB batch falló: {fb_results}")
+        logger.warning(f"FB batch falló (usando defaults): {fb_results}")
         fb_results = {}
     if isinstance(trends_results, Exception):
-        logger.error(f"Trends batch falló: {trends_results}")
+        logger.warning(f"Trends batch falló (usando defaults): {trends_results}")
         trends_results = {}
     if isinstance(yt_results, Exception):
-        logger.error(f"YouTube batch falló: {yt_results}")
+        logger.warning(f"YouTube batch falló (usando defaults): {yt_results}")
         yt_results = {}
 
     timings["signals"] = time.monotonic() - t0
@@ -265,8 +265,12 @@ async def run_daily_pipeline():
             )
             product_id_cache[producto.hotmart_id] = prod_id
             yesterday_snap = db.get_yesterday_snapshot(prod_id)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"DB error para {producto.nombre}: {e}")
             yesterday_snap = None
+            # Sin prod_id no podemos persistir este producto después — skip scoring
+            if producto.hotmart_id not in product_id_cache:
+                continue
 
         yesterday_product = None
         if yesterday_snap:
@@ -387,14 +391,69 @@ async def run_daily_pipeline():
     logger.info(f"PASO 6-7 OK: Dato persistido, {len(alertas_enviadas)} alertas enviadas")
 
     # ──────────────────────────────────────────
-    # PASO 8: Resumen de ejecución
+    # PASO 8: Resumen de ejecución (detallado y legible)
     # ──────────────────────────────────────────
-    timing_str = " | ".join(f"{k}: {v:.1f}s" for k, v in timings.items())
-    resumen = (
-        f"✅ Pipeline OK: {len(scored_products)} productos, "
-        f"{len(alertas_enviadas)} alertas\n"
-        f"⏱ {timing_str}"
+    total_time = sum(timings.values())
+
+    # Contar productos por categoría de score
+    winners = [s for s in scored_products if s.score_total >= 80]
+    high_potential = [s for s in scored_products if 60 <= s.score_total < 80]
+    on_radar = [s for s in scored_products if 40 <= s.score_total < 60]
+    low_score = [s for s in scored_products if s.score_total < 40]
+
+    # Contar señales disponibles vs defaults
+    fb_available = sum(1 for p in productos if p.nombre in fb_results) if isinstance(fb_results, dict) else 0
+    trends_available = len(trends_results) if isinstance(trends_results, dict) else 0
+    yt_available = len(yt_results) if isinstance(yt_results, dict) else 0
+
+    # Top 3 productos por score
+    sorted_products = sorted(scored_products, key=lambda s: s.score_total, reverse=True)
+    top_products = list(sorted_products[i] for i in range(min(3, len(sorted_products))))
+    top_list = "\n".join(
+        f"  {i+1}. {s.snapshot.nombre} — {s.score_total}/100 ({s.channel_risk})"
+        for i, s in enumerate(top_products)
     )
+
+    resumen = (
+        f"✅ <b>PIPELINE COMPLETADO</b>\n"
+        f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
+        f"📦 <b>Productos analizados:</b> {len(scored_products)}\n"
+        f"  • Scrapeados: {len(productos_raw)} → Filtros duros: {len(productos)}\n"
+        f"  • Hot (Más Calientes): {sum(1 for p in scored_products if p.snapshot.categoria == 'hot')}\n"
+        f"\n"
+        f"🏆 <b>Distribución de scores:</b>\n"
+        f"  💎 Súper Winners (80+): {len(winners)}\n"
+        f"  🔥 Alto potencial (60-79): {len(high_potential)}\n"
+        f"  📊 En el radar (40-59): {len(on_radar)}\n"
+        f"  ⬇️ Score bajo (&lt;40): {len(low_score)}\n"
+        f"\n"
+        f"📡 <b>Señales externas:</b>\n"
+        f"  • Facebook Ads: {fb_available}/{len(productos)} productos con datos\n"
+        f"  • Google Trends: {trends_available} keywords analizadas\n"
+        f"  • YouTube: {yt_available} keywords analizadas\n"
+        f"\n"
+        f"🔔 <b>Alertas enviadas:</b> {len(alertas_enviadas)}\n"
+    )
+
+    if alertas_enviadas:
+        first_five = list(alertas_enviadas[i] for i in range(min(5, len(alertas_enviadas))))
+        alertas_list = "\n".join(f"  → {name}" for name in first_five)
+        resumen += f"{alertas_list}\n"
+        if len(alertas_enviadas) > 5:
+            resumen += f"  ... y {len(alertas_enviadas) - 5} más\n"
+
+    if top_products:
+        resumen += f"\n🥇 <b>Top 3 productos hoy:</b>\n{top_list}\n"
+
+    resumen += (
+        f"\n⏱ <b>Tiempos:</b> "
+        f"Scraping {timings.get('scraping', 0):.0f}s · "
+        f"Señales {timings.get('signals', 0):.0f}s · "
+        f"Scoring {timings.get('scoring', 0):.0f}s · "
+        f"DB {timings.get('persistence', 0):.0f}s · "
+        f"Total {total_time:.0f}s"
+    )
+
     logger.info(resumen)
     send_alert(resumen)
 

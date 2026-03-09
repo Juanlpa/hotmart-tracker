@@ -31,8 +31,13 @@ def format_alert_message(scored: ScoredProduct) -> str:
         return "❌"
 
     # Indicador de tendencia basado en score_hotmart
-    # 12.0 = producto nuevo (neutro), >12 = tendencia positiva, <12 = negativa
-    delta_emoji = "📈" if scored.score_hotmart >= 12 else "📉"
+    # 15+ = subida fuerte, 10-14 = estable, <10 = bajada
+    if scored.score_hotmart >= 15:
+        delta_emoji = "📈"
+    elif scored.score_hotmart >= 10:
+        delta_emoji = "➡️"
+    else:
+        delta_emoji = "📉"
 
     # Canales
     canales_str = (
