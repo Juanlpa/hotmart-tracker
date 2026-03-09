@@ -179,14 +179,17 @@ async def fetch_trends_batch(
     """
     Fetch señales de trends para múltiples keywords.
     Retorna dict[keyword, SignalData].
+    Usa run_in_executor para no bloquear el event loop con time.sleep/pytrends.
     """
     results = {}
+    loop = asyncio.get_event_loop()
 
     for keyword in keywords:
         if keyword is None or keyword == "__default__":
             continue
 
-        signal = fetch_trend_signals(keyword)
+        # fetch_trend_signals es sync (usa time.sleep + pytrends), ejecutar en thread pool
+        signal = await loop.run_in_executor(None, fetch_trend_signals, keyword)
         if signal:
             results[keyword] = signal
         else:

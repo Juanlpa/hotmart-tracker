@@ -6,7 +6,7 @@ CONTRACT: esta es la ÚNICA forma de acceder a Supabase en todo el proyecto.
 """
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from supabase import create_client, Client
@@ -214,7 +214,7 @@ class SupabaseDB:
             "keyword": keyword,
             "geo": settings.target_market,
             "data": data,
-            "cached_at": datetime.now().isoformat(),
+            "cached_at": datetime.now(timezone.utc).isoformat(),
         }
 
         self._client.table("trends_cache").upsert(

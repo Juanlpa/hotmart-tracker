@@ -397,58 +397,37 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
             return None
 
         # ─── Comisión: "Comisión de hasta\nXX,XX US$" ───
+        # Extraer vía regex del texto completo del card (ES y PT)
         comision_pct = 0.0
-        comision_el = await card.query_selector("text=/Comisi[oó]n de hasta/i, text=/Comiss[aã]o de at[eé]/i")
-        if comision_el:
-            parent = await comision_el.evaluate_handle("el => el.parentElement")
-            if parent:
-                parent_text = await parent.inner_text()
-                comision_match = re.search(r"([\d.,]+)\s*(US\$|R\$|€|BRL|USD|MXN)?", parent_text.replace(await comision_el.inner_text(), ""))
-                if comision_match:
-                    comision_pct = _parse_number(comision_match.group(1))
-        
-        if not comision_pct:
-            # Fallback
+        comision_match = re.search(
+            r"[Cc]omisi[oó]n\s+de\s+hasta\s*\n?\s*([\d.,]+)\s*(US\$|R\$|€|BRL|USD|MXN)?",
+            full_text,
+        )
+        if not comision_match:
             comision_match = re.search(
-                r"[Cc]omisi[oó]n\s+de\s+hasta\s*\n?\s*([\d.,]+)\s*(US\$|R\$|€|BRL|USD|MXN)?",
+                r"[Cc]omiss[aã]o\s+de\s+at[eé]\s*\n?\s*([\d.,]+)",
                 full_text,
             )
-            if not comision_match:
-                comision_match = re.search(
-                    r"[Cc]omiss[aã]o\s+de\s+at[eé]\s*\n?\s*([\d.,]+)",
-                    full_text,
-                )
-            if comision_match:
-                comision_pct = _parse_number(comision_match.group(1))
+        if comision_match:
+            comision_pct = _parse_number(comision_match.group(1))
 
         # ─── Precio máximo del producto ───
+        # Extraer vía regex del texto completo del card (ES y PT)
         precio = 0.0
         moneda = "USD"
-        precio_el = await card.query_selector("text=/Precio máximo del producto:/i, text=/Preço máximo do produto:/i")
-        if precio_el:
-            parent = await precio_el.evaluate_handle("el => el.parentElement")
-            if parent:
-                parent_text = await parent.inner_text()
-                precio_match = re.search(r"([\d.,]+)\s*(US\$|R\$|€|BRL|USD|MXN)?", parent_text.replace(await precio_el.inner_text(), ""))
-                if precio_match:
-                    precio = _parse_number(precio_match.group(1))
-                    if len(precio_match.groups()) > 1 and precio_match.group(2):
-                        moneda = _detect_currency(precio_match.group(2))
-        
-        if not precio:
+        precio_match = re.search(
+            r"[Pp]recio\s+m[aá]ximo\s+del\s+producto:\s*([\d.,]+)\s*(US\$|R\$|€)?",
+            full_text,
+        )
+        if not precio_match:
             precio_match = re.search(
-                r"[Pp]recio\s+m[aá]ximo\s+del\s+producto:\s*([\d.,]+)\s*(US\$|R\$|€)?",
+                r"[Pp]re[cç]o\s+m[aá]ximo\s+do\s+produto:\s*([\d.,]+)",
                 full_text,
             )
-            if not precio_match:
-                precio_match = re.search(
-                    r"[Pp]re[cç]o\s+m[aá]ximo\s+do\s+produto:\s*([\d.,]+)",
-                    full_text,
-                )
-            if precio_match:
-                precio = _parse_number(precio_match.group(1))
-                if len(precio_match.groups()) > 1 and precio_match.group(2):
-                    moneda = _detect_currency(precio_match.group(2))
+        if precio_match:
+            precio = _parse_number(precio_match.group(1))
+            if len(precio_match.groups()) > 1 and precio_match.group(2):
+                moneda = _detect_currency(precio_match.group(2))
 
         # Calcular comisión como porcentaje si tenemos precio
         if comision_pct > 0 and precio > 0:

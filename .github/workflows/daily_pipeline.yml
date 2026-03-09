@@ -2,15 +2,15 @@ name: Hotmart Tracker Daily Pipeline
 
 on:
   schedule:
-    # Se ejecuta todos los días a las 11:00 UTC (06:00 AM hora de Ecuador/Colombia/Perú aprox)
+    # Se ejecuta todos los días a las 11:00 UTC (06:00 AM Colombia/Ecuador/Perú)
     - cron: '0 11 * * *'
-  # Permite ejecutar el workflow manualmente desde la página de GitHub
   workflow_dispatch:
 
 jobs:
   run-tracker:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 15
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,8 +18,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip' # Acelera las instalaciones futuras
+          python-version: '3.12'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -27,24 +27,30 @@ jobs:
           pip install -r requirements.txt
 
       - name: Install Playwright browsers (Chromium)
-        run: |
-          playwright install chromium
+        run: playwright install chromium
 
       - name: Run Pipeline
         env:
+          # Secrets
           HOTMART_EMAIL: ${{ secrets.HOTMART_EMAIL }}
           HOTMART_PASSWORD: ${{ secrets.HOTMART_PASSWORD }}
+          HOTMART_SCRAPER_PROXY: ${{ secrets.HOTMART_SCRAPER_PROXY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           YT_API_KEY: ${{ secrets.YT_API_KEY }}
           FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
-          # Variables / Opcionales
-          HOTMART_SCRAPER_PROXY: ${{ secrets.HOTMART_SCRAPER_PROXY }}
+          # Variables configurables sin redeploy
           TARGET_MARKET: ${{ vars.TARGET_MARKET || 'BR' }}
           SCORE_ALERT_THRESHOLD: ${{ vars.SCORE_ALERT_THRESHOLD || '65' }}
-          MIN_COMMISSION_PCT: ${{ vars.MIN_COMMISSION_PCT || '60.0' }}
+          MIN_COMMISSION_PCT: ${{ vars.MIN_COMMISSION_PCT || '60' }}
+          MIN_RATING: ${{ vars.MIN_RATING || '4.0' }}
+          SCRAPER_DELAY_MIN: ${{ vars.SCRAPER_DELAY_MIN || '3' }}
+          SCRAPER_DELAY_MAX: ${{ vars.SCRAPER_DELAY_MAX || '7' }}
+          WEIGHT_HOTMART: ${{ vars.WEIGHT_HOTMART || '0.25' }}
+          WEIGHT_FB: ${{ vars.WEIGHT_FB || '0.35' }}
+          WEIGHT_TRENDS: ${{ vars.WEIGHT_TRENDS || '0.25' }}
+          WEIGHT_YOUTUBE: ${{ vars.WEIGHT_YOUTUBE || '0.15' }}
           PYTHONPATH: .
-        run: |
-          python -m src.pipeline
+        run: python -m src.pipeline

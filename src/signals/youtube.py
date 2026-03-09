@@ -114,22 +114,25 @@ async def fetch_youtube_signals_batch(
     Ejemplo: 30 productos de 8 categorías → 8 búsquedas (800 unidades)
     """
     results = {}
+    loop = asyncio.get_event_loop()
 
     for keyword in keywords:
         if keyword is None or keyword == "__default__":
             continue
 
-        signal = fetch_youtube_signals(keyword, days_back)
+        # fetch_youtube_signals es sync (usa googleapiclient), ejecutar en thread pool
+        signal = await loop.run_in_executor(
+            None, fetch_youtube_signals, keyword, days_back
+        )
         if signal:
             results[keyword] = signal
         else:
-            # Defaults si falla
             results[keyword] = SignalData(
                 yt_recent_videos_count=0,
                 yt_affiliate_videos=0,
             )
 
-        # Pequeña pausa entre requests
+        # Pequeña pausa entre requests (non-blocking)
         await asyncio.sleep(0.5)
 
     logger.info(

@@ -30,9 +30,9 @@ def format_alert_message(scored: ScoredProduct) -> str:
             return "⚠️"
         return "❌"
 
-    # Delta de temperatura
-    delta_valor = scored.snapshot.temperatura  # Se puede mejorar con dato real
-    delta_emoji = "📈" if scored.score_hotmart >= 10 else "📉"
+    # Indicador de tendencia basado en score_hotmart
+    # 12.0 = producto nuevo (neutro), >12 = tendencia positiva, <12 = negativa
+    delta_emoji = "📈" if scored.score_hotmart >= 12 else "📉"
 
     # Canales
     canales_str = (
@@ -52,7 +52,7 @@ def format_alert_message(scored: ScoredProduct) -> str:
         f"\n"
         f"*Señales detectadas:*\n"
         f"{_emoji(scored.score_hotmart, 25)} Hotmart: "
-        f"{delta_emoji} {scored.score_hotmart}/25\n"
+        f"{delta_emoji} temp {scored.snapshot.temperatura}° ({scored.score_hotmart}/25)\n"
         f"{_emoji(scored.score_fb, 35)} FB Ads: "
         f"{scored.signals.fb_advertisers_count} anunciantes únicos "
         f"({scored.score_fb}/35)\n"

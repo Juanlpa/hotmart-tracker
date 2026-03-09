@@ -163,21 +163,23 @@ async def fetch_fb_batch(
     """
     Fetch señales FB para múltiples productos.
     Retorna dict[nombre, SignalData].
+    Usa run_in_executor para no bloquear el event loop con requests.get().
     """
     results = {}
+    loop = asyncio.get_event_loop()
 
     for name in product_names:
-        signal = fetch_ad_signals(name)
+        # fetch_ad_signals es sync (usa requests.get), ejecutar en thread pool
+        signal = await loop.run_in_executor(None, fetch_ad_signals, name)
         if signal:
             results[name] = signal
         else:
-            # Usar defaults si falla
             results[name] = SignalData(
                 fb_advertisers_count=0,
                 fb_is_producer_only=False,
                 fb_impression_range="LOW",
             )
-        # Rate limiting: esperar entre requests
+        # Rate limiting: esperar entre requests (non-blocking)
         await asyncio.sleep(1)
 
     logger.info(f"FB signals obtenidas: {len(results)}/{len(product_names)}")

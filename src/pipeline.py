@@ -222,6 +222,7 @@ async def run_daily_pipeline():
     t0 = time.monotonic()
     logger.info("PASO 5: Calculando scores...")
     scored_products: list[ScoredProduct] = []
+    product_id_cache: dict[str, str] = {}  # hotmart_id → UUID de Supabase
 
     for producto in productos:
         # Obtener señales (usar defaults si faltan)
@@ -250,10 +251,9 @@ async def run_daily_pipeline():
             yt_affiliate_videos=yt_signal.yt_affiliate_videos,
         )
 
-        # Obtener snapshot de ayer para delta
-        prod_id_temp = None
+        # Obtener snapshot de ayer para delta (y cachear product ID para PASO 6)
         try:
-            prod_id_temp = db.get_or_create_product(
+            prod_id = db.get_or_create_product(
                 hotmart_id=producto.hotmart_id,
                 nombre=producto.nombre,
                 categoria=producto.categoria,
@@ -261,7 +261,8 @@ async def run_daily_pipeline():
                 comision_pct=producto.comision_pct,
                 url_venta=producto.url_venta,
             )
-            yesterday_snap = db.get_yesterday_snapshot(prod_id_temp)
+            product_id_cache[producto.hotmart_id] = prod_id
+            yesterday_snap = db.get_yesterday_snapshot(prod_id)
         except Exception:
             yesterday_snap = None
 
@@ -324,14 +325,17 @@ async def run_daily_pipeline():
 
     for scored in scored_products:
         try:
-            prod_id = db.get_or_create_product(
-                hotmart_id=scored.snapshot.hotmart_id,
-                nombre=scored.snapshot.nombre,
-                categoria=scored.snapshot.categoria,
-                precio=scored.snapshot.precio,
-                comision_pct=scored.snapshot.comision_pct,
-                url_venta=scored.snapshot.url_venta,
-            )
+            # Reusar product ID cacheado en PASO 5 (evita doble query)
+            prod_id = product_id_cache.get(scored.snapshot.hotmart_id)
+            if not prod_id:
+                prod_id = db.get_or_create_product(
+                    hotmart_id=scored.snapshot.hotmart_id,
+                    nombre=scored.snapshot.nombre,
+                    categoria=scored.snapshot.categoria,
+                    precio=scored.snapshot.precio,
+                    comision_pct=scored.snapshot.comision_pct,
+                    url_venta=scored.snapshot.url_venta,
+                )
 
             snapshot_data = {
                 "fecha": date.today().isoformat(),
