@@ -54,15 +54,13 @@ def format_alert_message(scored: ScoredProduct) -> str:
     safe_canales = html.escape(canales_str)
     safe_risk = html.escape(scored.channel_risk)
 
-    # Categoría Visual del Producto basada en el Score Total
-    if scored.score_total >= 80:
+    # Categoría Visual por Tier de Score
+    if scored.score_total >= 70:
         header = "💎 <b>SÚPER WINNER DETECTADO</b> 💎"
-    elif scored.score_total >= 60:
+    elif scored.score_total >= 55:
         header = "🔥 <b>PRODUCTO CON ALTO POTENCIAL</b> 🔥"
-    elif scored.score_total >= 40:
-        header = "📊 <b>PRODUCTO EN EL RADAR</b>"
     else:
-        header = "⚠️ <b>ALERTA DE PRODUCTO</b>"
+        header = "📊 <b>PRODUCTO EN EL RADAR</b>"
 
     message = (
         f"{header}\n"

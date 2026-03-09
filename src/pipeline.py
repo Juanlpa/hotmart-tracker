@@ -299,12 +299,16 @@ async def run_daily_pipeline():
             producto, combined_signals
         )
 
-        # Determinar si alerta
-        alert_triggered = (
-            s_total >= settings.score_alert_threshold
-            and is_viable
-            and channel_risk != "HIGH"  # I6: HIGH risk nunca genera alerta
-        )
+        # Determinar si alerta — sistema de tiers
+        # Tier 1 (Super Winner 70+): alerta siempre si es viable
+        # Tier 2 (Alto Potencial 55+): alerta si riesgo no es HIGH
+        # Tier 3 (En el Radar 40+): solo aparece en resumen, no alerta individual
+        if s_total >= 70 and is_viable:
+            alert_triggered = True  # Super Winners siempre alertan
+        elif s_total >= 55 and is_viable and channel_risk != "HIGH":
+            alert_triggered = True  # Alto potencial con canal viable
+        else:
+            alert_triggered = False
 
         scored = ScoredProduct(
             snapshot=producto,
@@ -395,10 +399,10 @@ async def run_daily_pipeline():
     # ──────────────────────────────────────────
     total_time = sum(timings.values())
 
-    # Contar productos por categoría de score
-    winners = [s for s in scored_products if s.score_total >= 80]
-    high_potential = [s for s in scored_products if 60 <= s.score_total < 80]
-    on_radar = [s for s in scored_products if 40 <= s.score_total < 60]
+    # Contar productos por tier de score
+    winners = [s for s in scored_products if s.score_total >= 70]
+    high_potential = [s for s in scored_products if 55 <= s.score_total < 70]
+    on_radar = [s for s in scored_products if 40 <= s.score_total < 55]
     low_score = [s for s in scored_products if s.score_total < 40]
 
     # Contar señales disponibles vs defaults
@@ -421,10 +425,10 @@ async def run_daily_pipeline():
         f"  • Scrapeados: {len(productos_raw)} → Filtros duros: {len(productos)}\n"
         f"  • Hot (Más Calientes): {sum(1 for p in scored_products if p.snapshot.categoria == 'hot')}\n"
         f"\n"
-        f"🏆 <b>Distribución de scores:</b>\n"
-        f"  💎 Súper Winners (80+): {len(winners)}\n"
-        f"  🔥 Alto potencial (60-79): {len(high_potential)}\n"
-        f"  📊 En el radar (40-59): {len(on_radar)}\n"
+        f"🏆 <b>Distribución por Tier:</b>\n"
+        f"  💎 Súper Winners (70+): {len(winners)}\n"
+        f"  🔥 Alto potencial (55-69): {len(high_potential)}\n"
+        f"  📊 En el radar (40-54): {len(on_radar)}\n"
         f"  ⬇️ Score bajo (&lt;40): {len(low_score)}\n"
         f"\n"
         f"📡 <b>Señales externas:</b>\n"

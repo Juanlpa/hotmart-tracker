@@ -32,14 +32,14 @@ def assess_channel_viability(
     ):
         viable_channels.append("FB_ADS_COLD")
 
-    # YOUTUBE_ORGANIC: viable si hay demanda pero no saturado
-    if 0 < signals.yt_recent_videos_count < 30:
+    # YOUTUBE_ORGANIC: viable si no está saturado (hasta 50 videos es manejable)
+    if 0 < signals.yt_recent_videos_count < 50:
         viable_channels.append("YOUTUBE_ORGANIC")
 
-    # SEO_ORGANIC: viable si tendencia alcista y no es pico estacional
+    # SEO_ORGANIC: viable si tendencia positiva y no es ruido estacional
+    # NOTA: at_peak NO descalifica — pico de interés = más búsquedas = más SEO
     if (
-        signals.trends_slope_30d > 0.1
-        and not signals.trends_at_peak
+        signals.trends_slope_30d > 0.0
         and not signals.trends_seasonal
     ):
         viable_channels.append("SEO_ORGANIC")

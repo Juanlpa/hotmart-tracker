@@ -37,9 +37,9 @@ class Settings(BaseSettings):
 
     # Pipeline
     target_market: str = "BR"
-    score_alert_threshold: int = 65
-    min_commission_pct: float = 60.0
-    min_rating: float = 4.0
+    score_alert_threshold: int = 50
+    min_commission_pct: float = 40.0
+    min_rating: float = 3.5
     scraper_delay_min: float = 3.0
     scraper_delay_max: float = 7.0
 
@@ -120,18 +120,18 @@ class ScoredProduct:
 
 # Señales por defecto cuando una API falla (invariante I4)
 DEFAULT_FB_SIGNALS = {
-    "fb_advertisers_count": 0,
+    "fb_advertisers_count": 2,
     "fb_is_producer_only": False,
-    "fb_impression_range": "LOW",
+    "fb_impression_range": "MEDIUM",
 }
 
 DEFAULT_TRENDS_SIGNALS = {
-    "trends_slope_30d": 0.0,
+    "trends_slope_30d": 0.1,
     "trends_at_peak": False,
     "trends_seasonal": False,
 }
 
 DEFAULT_YT_SIGNALS = {
-    "yt_recent_videos_count": 0,
-    "yt_affiliate_videos": 0,
+    "yt_recent_videos_count": 5,
+    "yt_affiliate_videos": 1,
 }
