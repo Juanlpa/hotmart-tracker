@@ -43,9 +43,9 @@ jobs:
           FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
           # Variables configurables sin redeploy
           TARGET_MARKET: ${{ vars.TARGET_MARKET || 'BR' }}
-          SCORE_ALERT_THRESHOLD: ${{ vars.SCORE_ALERT_THRESHOLD || '65' }}
-          MIN_COMMISSION_PCT: ${{ vars.MIN_COMMISSION_PCT || '60' }}
-          MIN_RATING: ${{ vars.MIN_RATING || '4.0' }}
+          SCORE_ALERT_THRESHOLD: ${{ vars.SCORE_ALERT_THRESHOLD || '50' }}
+          MIN_COMMISSION_PCT: ${{ vars.MIN_COMMISSION_PCT || '40' }}
+          MIN_RATING: ${{ vars.MIN_RATING || '3.5' }}
           SCRAPER_DELAY_MIN: ${{ vars.SCRAPER_DELAY_MIN || '3' }}
           SCRAPER_DELAY_MAX: ${{ vars.SCRAPER_DELAY_MAX || '7' }}
           WEIGHT_HOTMART: ${{ vars.WEIGHT_HOTMART || '0.25' }}

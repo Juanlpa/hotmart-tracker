@@ -122,7 +122,12 @@ async def _setup_page(context: BrowserContext) -> Page:
         from playwright_stealth import stealth_async  # type: ignore
         await stealth_async(page)
     except ImportError:
-        logger.warning("playwright-stealth no instalado, usando stealth manual")
+        try:
+            # Algunas versiones usan StealthConfig o diferente API
+            from playwright_stealth import Stealth  # type: ignore
+            await Stealth().apply(page)
+        except ImportError:
+            logger.info("playwright-stealth no disponible, usando stealth JS manual")
     except Exception as e:
         logger.warning(f"playwright-stealth falló: {e}")
 
@@ -300,27 +305,85 @@ async def _scrape_app_market(
         # - "Comisión de hasta" + valor
         # - "Precio máximo del producto:" + valor
 
-        # Buscar todos los cards que contengan "Comisión de hasta"
-        # Estrategia: buscar los containers que tienen la estructura completa
-        all_text_content = await page.inner_text("body")
-
-        # Buscar links a productos individuales
-        product_links = await page.query_selector_all(
-            'a[href*="/market/product/"], a[href*="/marketplace/productos/"]'
+        # Estrategia: buscar links a productos y SUBIR al contenedor padre
+        # Los <a> son muchos (521+), pero el card padre tiene toda la info
+        raw_links = await page.query_selector_all(
+            'a[href*="/market/product/"]'
         )
-
-        if not product_links:
-            # Fallback: buscar cualquier card-like element
-            product_links = await page.query_selector_all(
-                '[class*="card"], [class*="Card"]'
+        if not raw_links:
+            raw_links = await page.query_selector_all(
+                'a[href*="/marketplace/productos/"]'
             )
 
-        logger.info(f"Encontrados {len(product_links)} elementos de producto en market autenticado")
+        # Deduplicar: subir al contenedor padre más cercano que tenga texto sustancial
+        # Esto evita procesar 521 <a> cuando solo hay ~50-100 cards reales
+        product_links = await page.evaluate("""(links) => {
+            const seen = new Set();
+            const containers = [];
+            for (const link of links) {
+                // Subir al ancestor más cercano que tenga "Comisión" o "Precio máximo"
+                let el = link;
+                for (let i = 0; i < 5; i++) {
+                    if (!el.parentElement) break;
+                    el = el.parentElement;
+                    const text = el.innerText || '';
+                    if ((text.includes('omisi') || text.includes('omiss')) &&
+                        (text.includes('recio') || text.includes('reço'))) {
+                        break;
+                    }
+                }
+                // Usar el outerHTML como key para deduplicar
+                const key = el.innerText ? el.innerText.substring(0, 80) : '';
+                if (key && !seen.has(key)) {
+                    seen.add(key);
+                    containers.push(el);
+                }
+            }
+            return containers.length;
+        }""", raw_links)
 
-        seen_names = set()
-        for link in product_links[:max_products]:
+        # Ahora obtener los containers deduplicados como elementos reales
+        product_cards = await page.evaluate_handle("""() => {
+            const seen = new Set();
+            const containers = [];
+            const links = document.querySelectorAll('a[href*="/market/product/"]');
+            for (const link of links) {
+                let el = link;
+                for (let i = 0; i < 5; i++) {
+                    if (!el.parentElement) break;
+                    el = el.parentElement;
+                    const text = el.innerText || '';
+                    if ((text.includes('omisi') || text.includes('omiss')) &&
+                        (text.includes('recio') || text.includes('reço'))) {
+                        break;
+                    }
+                }
+                const key = el.innerText ? el.innerText.substring(0, 80) : '';
+                if (key && key.length > 20 && !seen.has(key)) {
+                    seen.add(key);
+                    containers.push(el);
+                }
+            }
+            return containers;
+        }""")
+
+        # Convertir JSHandle array a lista de ElementHandles
+        length = await product_cards.evaluate("arr => arr.length")
+        card_handles = []
+        for i in range(length):
+            handle = await product_cards.evaluate_handle(f"arr => arr[{i}]")
+            card_handles.append(handle)
+
+        logger.info(
+            f"Encontrados {len(raw_links)} links → {length} cards únicos con datos de producto"
+        )
+
+        seen_names: set[str] = set()
+        for card_handle in card_handles:
+            if len(all_products) >= max_products:
+                break
             try:
-                product = await _extract_from_auth_card(link, page)
+                product = await _extract_from_auth_card(card_handle, page)
                 if product and product.nombre not in seen_names:
                     seen_names.add(product.nombre)
                     all_products.append(product)
@@ -351,22 +414,26 @@ async def _extract_from_auth_card(card, page: Page) -> ProductSnapshot | None:
     try:
         # Extraer texto seguro via JS para evitar Playwright 'Node is not an HTMLElement'
         full_text = await card.evaluate("el => el.innerText || el.textContent || ''")
-        if not full_text or len(full_text.strip()) < 5:
+        if not full_text or len(full_text.strip()) < 20:
+            # Cards reales tienen al menos nombre + comisión (~20 chars mínimo)
+            return None
+
+        # Filtro rápido: si no tiene "comisión/comissão" NI "precio/preço", no es un card de producto
+        text_lower = full_text.lower()
+        has_commission = "comisi" in text_lower or "comiss" in text_lower
+        has_price = "precio" in text_lower or "preço" in text_lower or "us$" in text_lower or "r$" in text_lower
+        if not has_commission and not has_price:
             return None
 
         # ─── URL ───
         url_venta = ""
-        # Try to find href on the card itself, or any child <a> element safely
         href = await card.evaluate("el => { let a = el.closest('a') || el.querySelector('a'); return a ? a.getAttribute('href') : el.getAttribute('href'); }")
-        
+
         if href:
             url_venta = href
-            
+
         if url_venta and url_venta.startswith("/"):
             url_venta = "https://app.hotmart.com" + url_venta
-            
-        if not url_venta:
-            logger.debug(f"DEBUG NO URL in CARD: {await card.evaluate('el => el.outerHTML')} ")
 
         # ─── DOM Selectors for Authenticated Market ───
         
