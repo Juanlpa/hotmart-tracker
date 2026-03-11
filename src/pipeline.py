@@ -413,10 +413,17 @@ async def run_daily_pipeline():
     # Top 3 productos por score
     sorted_products = sorted(scored_products, key=lambda s: s.score_total, reverse=True)
     top_products = list(sorted_products[i] for i in range(min(3, len(sorted_products))))
-    top_list = "\n".join(
-        f"  {i+1}. {s.snapshot.nombre} — {s.score_total}/100 ({s.channel_risk})"
-        for i, s in enumerate(top_products)
-    )
+    from urllib.parse import quote
+    top_lines = []
+    for i, s in enumerate(top_products):
+        line = f"  {i+1}. {s.snapshot.nombre} — {s.score_total}/100 ({s.channel_risk})"
+        if s.snapshot.url_venta:
+            line += f'\n     🔗 <a href="{s.snapshot.url_venta}">Abrir</a>'
+        else:
+            search_q = quote(s.snapshot.nombre)
+            line += f'\n     🔍 <a href="https://hotmart.com/es/marketplace?q={search_q}">Buscar</a>'
+        top_lines.append(line)
+    top_list = "\n".join(top_lines)
 
     resumen = (
         f"✅ <b>PIPELINE COMPLETADO</b>\n"

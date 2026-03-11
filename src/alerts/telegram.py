@@ -47,12 +47,25 @@ def format_alert_message(scored: ScoredProduct) -> str:
     )
 
     import html
-    
+    from urllib.parse import quote
+
     # Escape user input to prevent HTML injection errors
     safe_nombre = html.escape(scored.snapshot.nombre)
     safe_url = html.escape(scored.snapshot.url_venta)
     safe_canales = html.escape(canales_str)
     safe_risk = html.escape(scored.channel_risk)
+
+    # Links directos al producto
+    url_venta = scored.snapshot.url_venta or ""
+    search_query = quote(scored.snapshot.nombre)
+    marketplace_search_url = f"https://hotmart.com/es/marketplace?q={search_query}"
+    google_search_url = f"https://www.google.com/search?q={search_query}+hotmart"
+
+    links_section = ""
+    if url_venta:
+        links_section += f'🔗 <a href="{safe_url}"><b>Abrir en Hotmart</b></a>\n'
+    links_section += f'🔍 <a href="{html.escape(marketplace_search_url)}"><b>Buscar en Marketplace</b></a>\n'
+    links_section += f'🌐 <a href="{html.escape(google_search_url)}"><b>Buscar en Google</b></a>'
 
     # Categoría Visual por Tier de Score
     if scored.score_total >= 70:
@@ -80,8 +93,8 @@ def format_alert_message(scored: ScoredProduct) -> str:
         f"{_emoji(scored.score_fb, 35)} FB Ads: {scored.signals.fb_advertisers_count} anuncios ({scored.score_fb}/35)\n"
         f"{_emoji(scored.score_trends, 25)} Google: {scored.signals.trends_slope_30d:+.2f} ({scored.score_trends}/25)\n"
         f"{_emoji(scored.score_youtube, 15)} YouTube: {scored.signals.yt_recent_videos_count} videos ({scored.score_youtube}/15)\n"
-        f"\n"
-        f"🔗 <a href=\"{safe_url}\"><b>Ver Página de Ventas (VSL)</b></a>"
+        f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
+        f"{links_section}"
     )
 
     return message
