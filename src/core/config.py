@@ -132,6 +132,6 @@ DEFAULT_TRENDS_SIGNALS = {
 }
 
 DEFAULT_YT_SIGNALS = {
-    "yt_recent_videos_count": 5,
-    "yt_affiliate_videos": 1,
+    "yt_recent_videos_count": 0,
+    "yt_affiliate_videos": 0,
 }

@@ -19,7 +19,7 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-FB_AD_LIBRARY_URL = "https://graph.facebook.com/v19.0/ads_archive"
+FB_AD_LIBRARY_URL = "https://graph.facebook.com/v21.0/ads_archive"
 
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -174,11 +174,9 @@ async def fetch_fb_batch(
         if signal:
             results[name] = signal
         else:
-            results[name] = SignalData(
-                fb_advertisers_count=0,
-                fb_is_producer_only=False,
-                fb_impression_range="LOW",
-            )
+            # Usar defaults neutros cuando la API falla (invariante I4)
+            from src.core.config import DEFAULT_FB_SIGNALS
+            results[name] = SignalData(**DEFAULT_FB_SIGNALS)
         # Rate limiting: esperar entre requests (non-blocking)
         await asyncio.sleep(1)
 

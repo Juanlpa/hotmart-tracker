@@ -127,10 +127,8 @@ async def fetch_youtube_signals_batch(
         if signal:
             results[keyword] = signal
         else:
-            results[keyword] = SignalData(
-                yt_recent_videos_count=0,
-                yt_affiliate_videos=0,
-            )
+            from src.core.config import DEFAULT_YT_SIGNALS
+            results[keyword] = SignalData(**DEFAULT_YT_SIGNALS)
 
         # Pequeña pausa entre requests (non-blocking)
         await asyncio.sleep(0.5)
